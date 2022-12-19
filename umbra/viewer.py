@@ -174,7 +174,7 @@ class MeshViewer:
 
     def __set_mesh(self, v, f, n, c, object_name):
         v_flat = v.ravel().astype('f4')
-        c_flat = self.__expand_colors(c).ravel().astype('f4')
+        c_flat = self.__expand_colors(v, c).ravel().astype('f4')
         f_flat = f.ravel().astype('i4')
 
         if not object_name in self.buffers_all:
@@ -200,7 +200,7 @@ class MeshViewer:
     
     def __set_points(self, v, n=None, c=None, object_name='default'):
         v_flat = v.ravel().astype(np.float32)
-        c_flat = self.__expand_colors(c).ravel().astype(np.float32)
+        c_flat = self.__expand_colors(v, c).ravel().astype(np.float32)
         
         if not object_name in self.buffers_all:
             self.buffers_all[object_name] = {'type': 'points'}
