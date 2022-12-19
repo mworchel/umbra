@@ -81,9 +81,9 @@ class MeshViewer:
 
             self.points_program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
             self.points_program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
-            self.context.point_size = 5.0
 
-            for _, (mode, v) in self.vaos_all.items():
+            for _, (mode, configure_func, v) in self.vaos_all.items():
+                configure_func(self.context)
                 v.render(mode=mode)
 
             # Render the coordinate system 
@@ -195,10 +195,10 @@ class MeshViewer:
         buffers['ibo'] = self.context.buffer(f_flat)
         self.__update_vao(object_name)
 
-    def set_points(self, v, n=None, c=None, object_name='default'):
-        self.__enqueue_command(lambda: self.__set_points(v, n, c, object_name))
+    def set_points(self, v, n=None, c=None, point_size=5, object_name='default'):
+        self.__enqueue_command(lambda: self.__set_points(v, n, c, point_size, object_name))
     
-    def __set_points(self, v, n=None, c=None, object_name='default'):
+    def __set_points(self, v, n=None, c=None, point_size=5, object_name='default'):
         v_flat = v.ravel().astype(np.float32)
         c_flat = self.__expand_colors(v, c).ravel().astype(np.float32)
         
@@ -208,6 +208,8 @@ class MeshViewer:
 
         if buffers['type'] != 'points':
             raise RuntimeError(f"Entity '{object_name}' has type '{buffers['type']}' and is not a point cloud.")
+
+        buffers['point_size'] = point_size
 
         # if n is not None:
         #     n_flat = n.ravel().astype('f4')
@@ -268,6 +270,7 @@ class MeshViewer:
             # We control the 'in_vert' and `in_color' variables
             self.vaos_all[object_name] = (
                 moderngl.TRIANGLES,
+                lambda context: None,
                 self.context.vertex_array(
                     self.mesh_program,
                     # [
@@ -291,9 +294,13 @@ class MeshViewer:
             if 'vcbo' in buffers and self.mesh_program.get('color', None):  
                 content += [(buffers['vcbo'], '3f', 'color')]
 
+            def configure_context(context):
+                context.point_size = buffers['point_size']
+
             # We control the 'in_vert' and `in_color' variables
             self.vaos_all[object_name] = (
                 moderngl.POINTS,
+                configure_context,
                 self.context.vertex_array(
                 self.points_program,
                 content
