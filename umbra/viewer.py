@@ -182,7 +182,7 @@ class MeshViewer:
         buffers = self.buffers_all[object_name]
 
         if buffers['type'] != 'mesh':
-            raise RuntimeError(f"Entity '{object_name}' has type 'f{buffers['type']}' and is not a mesh.")
+            raise RuntimeError(f"Entity '{object_name}' has type '{buffers['type']}' and is not a mesh.")
 
         if n is not None:
             n_flat = n.ravel().astype('f4')
@@ -207,7 +207,7 @@ class MeshViewer:
         buffers = self.buffers_all[object_name]
 
         if buffers['type'] != 'points':
-            raise RuntimeError(f"Entity '{object_name}' has type 'f{buffers['type']}' and is not a point cloud.")
+            raise RuntimeError(f"Entity '{object_name}' has type '{buffers['type']}' and is not a point cloud.")
 
         # if n is not None:
         #     n_flat = n.ravel().astype('f4')
