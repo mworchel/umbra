@@ -57,6 +57,8 @@ class MeshViewer:
         }
         self.mesh_program = self.mesh_programs['face']
 
+        self.points_program = self.context.program(vertex_shader=mesh_vertex_shader, fragment_shader=fragment_shader_flat)
+
         while not glfw.window_should_close(self.window):
             glfw.poll_events()
             glfw.make_context_current(self.window)
@@ -77,8 +79,12 @@ class MeshViewer:
             self.mesh_program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
             self.mesh_program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
 
-            for _, v in self.vaos_all.items():
-                v.render()
+            self.points_program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
+            self.points_program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
+            self.context.point_size = 5.0
+
+            for _, (mode, v) in self.vaos_all.items():
+                v.render(mode=mode)
 
             # Render the coordinate system 
             self.coordinate_system.render(self.context, self.camera)
@@ -166,8 +172,11 @@ class MeshViewer:
         f_flat = f.ravel().astype('i4')
 
         if not object_name in self.buffers_all:
-            self.buffers_all[object_name] = {}
+            self.buffers_all[object_name] = {'type': 'mesh'}
         buffers = self.buffers_all[object_name]
+
+        if buffers['type'] != 'mesh':
+            raise RuntimeError(f"Entity '{object_name}' has type 'f{buffers['type']}' and is not a mesh.")
 
         if n is not None:
             n_flat = n.ravel().astype('f4')
@@ -180,6 +189,37 @@ class MeshViewer:
         buffers['ibo'] = self.context.buffer(f_flat)
         self.__update_vao(object_name)
 
+    def set_points(self, v, n=None, c=None, object_name='default'):
+        self.__enqueue_command(lambda: self.__set_points(v, n, c, object_name))
+    
+    def __set_points(self, v, n=None, c=None, object_name='default'):
+        # Vertices
+        v_flat = v.ravel().astype(np.float32)
+
+        # Colors
+        if c is None:
+            c = 0.85*np.ones((v.shape[0], 3), dtype=np.float32)
+        c = np.asarray(c)
+        if len(c.shape) == 1 and c.shape[0] == 3:
+            c = np.tile(c[None, :], (len(v), 1))
+        c_flat = c.ravel().astype(np.float32)
+        
+        if not object_name in self.buffers_all:
+            self.buffers_all[object_name] = {'type': 'points'}
+        buffers = self.buffers_all[object_name]
+
+        if buffers['type'] != 'points':
+            raise RuntimeError(f"Entity '{object_name}' has type 'f{buffers['type']}' and is not a point cloud.")
+
+        # if n is not None:
+        #     n_flat = n.ravel().astype('f4')
+        #     buffers['vnbo'] = self.context.buffer(n_flat)
+        # else:
+        #     buffers['vnbo'] = None
+
+        buffers['vbo'] = self.context.buffer(v_flat)
+        buffers['vcbo'] = self.context.buffer(c_flat)
+        self.__update_vao(object_name)
 
     def set_model_matrix(self, model_matrix):
         self.__enqueue_command(lambda: self.__set_model_matrix(model_matrix))
@@ -218,6 +258,7 @@ class MeshViewer:
 
         buffers = self.buffers_all[object_name]
 
+        if buffers['type'] == 'mesh':
         content = [(buffers['vbo'], '3f', 'position')]
 
         if 'vnbo' in buffers and self.mesh_program.get('normal', None):
@@ -227,7 +268,9 @@ class MeshViewer:
             content += [(buffers['vcbo'], '3f', 'color')]
 
         # We control the 'in_vert' and `in_color' variables
-        self.vaos_all[object_name] = self.context.vertex_array(
+            self.vaos_all[object_name] = (
+                moderngl.TRIANGLES,
+                self.context.vertex_array(
             self.mesh_program,
             # [
             #     # Map in_vert to the first 2 floats
@@ -240,4 +283,23 @@ class MeshViewer:
             content,
             index_buffer=buffers['ibo'],
             index_element_size=4
+                ))
+        elif buffers['type'] == 'points':
+            content = [(buffers['vbo'], '3f', 'position')]
+
+            # if 'vnbo' in buffers and self.mesh_program.get('normal', None):
+            #     content += [(buffers['vnbo'], '3f', 'normal')]
+
+            if 'vcbo' in buffers and self.mesh_program.get('color', None):  
+                content += [(buffers['vcbo'], '3f', 'color')]
+
+            # We control the 'in_vert' and `in_color' variables
+            self.vaos_all[object_name] = (
+                moderngl.POINTS,
+                self.context.vertex_array(
+                self.points_program,
+                content
+                )
         )
+        else:
+            raise RuntimeError(f"Unknown object type {buffers['type']}")
