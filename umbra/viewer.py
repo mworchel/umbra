@@ -192,9 +192,6 @@ class MeshViewer:
         self.__enqueue_command(lambda: self.__set_shading_mode(mode))
 
     def __set_shading_mode(self, mode, object_name):
-        if mode == 'neural' and self.neural_shader is None:
-            raise RuntimeError("Neural shading mode requires a neural shader")
-
         self.mesh_program_name = mode
         self.mesh_program = self.mesh_programs[self.mesh_program_name]
 
