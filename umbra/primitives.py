@@ -2,6 +2,7 @@ import moderngl
 import numpy as np
 
 from .shaders import mesh_vertex_shader, fragment_shader_flat
+from .utils import to_opengl_matrix
 
 class Quad:
     def __init__(self, context: moderngl.Context):
@@ -89,6 +90,6 @@ class CoordinateSystem():
         )
 
     def render(self, context, camera):
-        self.program['model_view_matrix'].write(camera.view_matrix.astype('f4'))
-        self.program['projection_matrix'].write(camera.projection_matrix.astype('f4'))
+        self.program['model_view_matrix'].write(to_opengl_matrix(camera.view_matrix))
+        self.program['projection_matrix'].write(to_opengl_matrix(camera.projection_matrix))
         self.vao.render(moderngl.LINES)

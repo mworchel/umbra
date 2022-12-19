@@ -43,8 +43,8 @@ class OrbitControl:
 
             self.update_camera()
         elif button == 1: # RMB
-            P_inv = np.linalg.inv(np.array(self.camera.projection_matrix).T)
-            V_inv = np.linalg.inv(np.array(self.camera.view_matrix).T)
+            P_inv = np.linalg.inv(self.camera.projection_matrix)
+            V_inv = np.linalg.inv(self.camera.view_matrix)
 
             def unproject(x, y):
                 x_ndc = 2 * x / (self.camera.viewport[2] - self.camera.viewport[0]) - 1

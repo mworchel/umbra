@@ -1,5 +1,6 @@
 import numpy as np
-from pyrr import Matrix44
+
+from .transformations import create_lookat_matrix, create_perspective_projection_matrix
 
 class PerspectiveCamera:
     def __init__(self, viewport):
@@ -37,7 +38,7 @@ class PerspectiveCamera:
     @property
     def view_matrix(self):
         if self._view_matrix is None:
-            self._view_matrix = Matrix44.look_at(self.eye, self.lookat, self.up)            
+            self._view_matrix = create_lookat_matrix(self.eye, self.lookat, self.up)            
 
         return self._view_matrix
 
@@ -47,6 +48,6 @@ class PerspectiveCamera:
             width = self._viewport[2] - self._viewport[0]
             height = self._viewport[3] - self._viewport[1]
             aspect_ratio = width / height
-            self.projection_matrix_ = Matrix44.perspective_projection(self.fov, aspect_ratio, self.near, self.far)
+            self.projection_matrix_ = create_perspective_projection_matrix(self.fov, aspect_ratio, self.near, self.far)
 
         return self.projection_matrix_

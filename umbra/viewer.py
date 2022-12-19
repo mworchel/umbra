@@ -3,13 +3,13 @@ from queue import Queue
 import moderngl
 import numpy as np
 from OpenGL.GL import GL_TEXTURE_2D
-from pyrr import Matrix44
 import threading
 
 from .camera import PerspectiveCamera
 from .controller import OrbitControl
 from .primitives import Quad, CoordinateSystem
 from .shaders import *
+from .utils import to_opengl_matrix
 
 class MeshViewer:
     def __init__(self, width=600, height=600, name="OpenGL Window", device='cuda:0'):
@@ -73,9 +73,9 @@ class MeshViewer:
             self.context.clear(*self.clear_color)
 
             # Update shader data
-            model_view_matrix = self.model_matrix @ self.camera.view_matrix
-            self.mesh_program['model_view_matrix'].write(model_view_matrix.astype('f4'))
-            self.mesh_program['projection_matrix'].write(self.camera.projection_matrix.astype('f4'))
+            model_view_matrix = self.camera.view_matrix @ self.model_matrix
+            self.mesh_program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
+            self.mesh_program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
 
             for _, v in self.vaos_all.items():
                 v.render()
@@ -185,8 +185,8 @@ class MeshViewer:
         self.__enqueue_command(lambda: self.__set_model_matrix(model_matrix))
 
     def __set_model_matrix(self, model_matrix):
-        self.model_matrix = Matrix44(model_matrix.T)
-        self.inverse_model_matrix = self.model_matrix.inverse
+        self.model_matrix = model_matrix
+        self.inverse_model_matrix = np.linalg.inv(self.model_matrix)
 
     def set_shading_mode(self, mode, object_name=None):
         self.__enqueue_command(lambda: self.__set_shading_mode(mode))
