@@ -257,30 +257,30 @@ class MeshViewer:
         buffers = self.buffers_all[object_name]
 
         if buffers['type'] == 'mesh':
-        content = [(buffers['vbo'], '3f', 'position')]
+            content = [(buffers['vbo'], '3f', 'position')]
 
-        if 'vnbo' in buffers and self.mesh_program.get('normal', None):
-            content += [(buffers['vnbo'], '3f', 'normal')]
+            if 'vnbo' in buffers and self.mesh_program.get('normal', None):
+                content += [(buffers['vnbo'], '3f', 'normal')]
 
-        if 'vcbo' in buffers and self.mesh_program.get('color', None):  
-            content += [(buffers['vcbo'], '3f', 'color')]
+            if 'vcbo' in buffers and self.mesh_program.get('color', None):  
+                content += [(buffers['vcbo'], '3f', 'color')]
 
-        # We control the 'in_vert' and `in_color' variables
+            # We control the 'in_vert' and `in_color' variables
             self.vaos_all[object_name] = (
                 moderngl.TRIANGLES,
                 self.context.vertex_array(
-            self.mesh_program,
-            # [
-            #     # Map in_vert to the first 2 floats
-            #     # Map in_color to the next 3 floats
-            #     #(self.vbo, '2f 3f', 'in_vert', 'in_color'),
-            #     (self.vbo, '3f', 'position'),
-            #     #(self.vnbo, '3f', 'normal'),
-            #     (self.vcbo, '3f', 'color'),
-            # ],
-            content,
-            index_buffer=buffers['ibo'],
-            index_element_size=4
+                    self.mesh_program,
+                    # [
+                    #     # Map in_vert to the first 2 floats
+                    #     # Map in_color to the next 3 floats
+                    #     #(self.vbo, '2f 3f', 'in_vert', 'in_color'),
+                    #     (self.vbo, '3f', 'position'),
+                    #     #(self.vnbo, '3f', 'normal'),
+                    #     (self.vcbo, '3f', 'color'),
+                    # ],
+                    content,
+                    index_buffer=buffers['ibo'],
+                    index_element_size=4
                 ))
         elif buffers['type'] == 'points':
             content = [(buffers['vbo'], '3f', 'position')]
@@ -298,6 +298,6 @@ class MeshViewer:
                 self.points_program,
                 content
                 )
-        )
+            )
         else:
             raise RuntimeError(f"Unknown object type {buffers['type']}")
