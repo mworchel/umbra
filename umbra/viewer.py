@@ -158,17 +158,23 @@ class MeshViewer:
         if self.user_key_callback:
             self.user_key_callback(key, scancode, action, mods)
 
+    def __expand_colors(self, vertices, colors):
+        if colors is None:
+            colors = 0.85*np.ones((vertices.shape[0], 3), dtype=np.float32)
+            
+        colors = np.asarray(colors)
+
+        if len(colors.shape) == 1 and colors.shape[0] == 3:
+            colors = np.tile(colors[None, :], (len(vertices), 1))
+
+        return colors
+
     def set_mesh(self, v, f, n=None, c=None, object_name='default'):
         self.__enqueue_command(lambda: self.__set_mesh(v, f, n, c, object_name))
 
     def __set_mesh(self, v, f, n, c, object_name):
         v_flat = v.ravel().astype('f4')
-        if c is None:
-            c = 0.85*np.ones((v.shape[0], 3), dtype='f4')
-        c = np.asarray(c)
-        if len(c.shape) == 1 and c.shape[0] == 3:
-            c = np.tile(c[None, :], (len(v), 1))
-        c_flat = c.ravel().astype('f4')
+        c_flat = self.__expand_colors(c).ravel().astype('f4')
         f_flat = f.ravel().astype('i4')
 
         if not object_name in self.buffers_all:
@@ -193,16 +199,8 @@ class MeshViewer:
         self.__enqueue_command(lambda: self.__set_points(v, n, c, object_name))
     
     def __set_points(self, v, n=None, c=None, object_name='default'):
-        # Vertices
         v_flat = v.ravel().astype(np.float32)
-
-        # Colors
-        if c is None:
-            c = 0.85*np.ones((v.shape[0], 3), dtype=np.float32)
-        c = np.asarray(c)
-        if len(c.shape) == 1 and c.shape[0] == 3:
-            c = np.tile(c[None, :], (len(v), 1))
-        c_flat = c.ravel().astype(np.float32)
+        c_flat = self.__expand_colors(c).ravel().astype(np.float32)
         
         if not object_name in self.buffers_all:
             self.buffers_all[object_name] = {'type': 'points'}
