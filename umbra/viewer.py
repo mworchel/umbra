@@ -187,8 +187,8 @@ class MeshViewer:
         if n is not None:
             n_flat = n.ravel().astype('f4')
             buffers['vnbo'] = self.context.buffer(n_flat)
-        else:
-            buffers['vnbo'] = None
+        elif 'vnbo' in buffers:
+            del buffers['vnbo']
 
         buffers['vbo'] = self.context.buffer(v_flat)
         buffers['vcbo'] = self.context.buffer(c_flat)
