@@ -229,7 +229,7 @@ class MeshViewer:
         self.inverse_model_matrix = np.linalg.inv(self.model_matrix)
 
     def set_shading_mode(self, mode, object_name=None):
-        self.__enqueue_command(lambda: self.__set_shading_mode(mode))
+        self.__enqueue_command(lambda: self.__set_shading_mode(mode, object_name))
 
     def __set_shading_mode(self, mode, object_name):
         self.mesh_program_name = mode
