@@ -211,11 +211,11 @@ class MeshViewer:
 
         buffers['point_size'] = point_size
 
-        # if n is not None:
-        #     n_flat = n.ravel().astype('f4')
-        #     buffers['vnbo'] = self.context.buffer(n_flat)
-        # else:
-        #     buffers['vnbo'] = None
+        if n is not None:
+            n_flat = n.ravel().astype('f4')
+            buffers['vnbo'] = self.context.buffer(n_flat)
+        elif 'vnbo' in buffers:
+            del buffers['vnbo']
 
         buffers['vbo'] = self.context.buffer(v_flat)
         buffers['vcbo'] = self.context.buffer(c_flat)
@@ -288,8 +288,8 @@ class MeshViewer:
         elif buffers['type'] == 'points':
             content = [(buffers['vbo'], '3f', 'position')]
 
-            # if 'vnbo' in buffers and self.points_program.get('normal', None):
-            #     content += [(buffers['vnbo'], '3f', 'normal')]
+            if 'vnbo' in buffers and self.points_program.get('normal', None):
+                content += [(buffers['vnbo'], '3f', 'normal')]
 
             if 'vcbo' in buffers and self.points_program.get('color', None):  
                 content += [(buffers['vcbo'], '3f', 'color')]
