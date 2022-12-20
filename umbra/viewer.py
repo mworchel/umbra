@@ -288,10 +288,10 @@ class MeshViewer:
         elif buffers['type'] == 'points':
             content = [(buffers['vbo'], '3f', 'position')]
 
-            # if 'vnbo' in buffers and self.mesh_program.get('normal', None):
+            # if 'vnbo' in buffers and self.points_program.get('normal', None):
             #     content += [(buffers['vnbo'], '3f', 'normal')]
 
-            if 'vcbo' in buffers and self.mesh_program.get('color', None):  
+            if 'vcbo' in buffers and self.points_program.get('color', None):  
                 content += [(buffers['vcbo'], '3f', 'color')]
 
             def configure_context(context):
