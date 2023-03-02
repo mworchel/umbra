@@ -23,6 +23,8 @@ class MeshViewer:
         self.drag_point_right = None
 
         self.user_mouse_scroll_callback = None
+        self.user_mouse_drag_callback = None
+        self.user_mouse_button_callback = None
         self.user_key_callback = None
 
         self.device = device
@@ -121,13 +123,20 @@ class MeshViewer:
 
     def mouse_event_callback(self, window, xpos, ypos):
         if self.drag_point_left:
+            if self.user_mouse_drag_callback:
+                self.user_mouse_drag_callback(self.drag_point_left[0], xpos, self.drag_point_left[1], ypos, 0)
             self.camera_controller.handle_drag(self.drag_point_left[0], xpos, self.drag_point_left[1], ypos, 0)
             self.drag_point_left = (xpos, ypos)
         elif self.drag_point_right:
+            if self.user_mouse_drag_callback:
+                self.user_mouse_drag_callback(self.drag_point_right[0], xpos, self.drag_point_right[1], ypos, 1)
             self.camera_controller.handle_drag(self.drag_point_right[0], xpos, self.drag_point_right[1], ypos, 1)
             self.drag_point_right = (xpos, ypos)
 
     def mouse_button_callback(self, window, button, action, mods):
+        if self.user_mouse_button_callback:
+            self.user_mouse_button_callback(button, action, mods)
+
         # Detect drag start/end event
         if action == glfw.PRESS:
             xpos, ypos = glfw.get_cursor_pos(window)
