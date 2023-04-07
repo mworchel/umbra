@@ -39,18 +39,18 @@ layout (triangles) in;
 layout (line_strip, max_vertices = 4) out;
 
 void main() {
-    vec4 offset = vec4(0.0, 0.0, 0.0, 0.0);
+    vec4 z_scale = vec4(1.0, 1.0, 0.9999, 1.0);
 
-    gl_Position = gl_in[0].gl_Position + offset; 
+    gl_Position = gl_in[0].gl_Position * z_scale; 
     EmitVertex();
 
-    gl_Position = gl_in[1].gl_Position + offset;
+    gl_Position = gl_in[1].gl_Position * z_scale;
     EmitVertex();
     
-    gl_Position = gl_in[2].gl_Position + offset;
+    gl_Position = gl_in[2].gl_Position * z_scale;
     EmitVertex();
 
-    gl_Position = gl_in[0].gl_Position + offset;
+    gl_Position = gl_in[0].gl_Position * z_scale;
     EmitVertex();
 
     EndPrimitive();
