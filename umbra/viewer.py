@@ -51,17 +51,14 @@ class MeshViewer:
         self.coordinate_system = CoordinateSystem(self.context)
 
         # Create the default program for triangle mesh rendering
-        self.mesh_program_name = 'face'
-        self.mesh_programs = {
+        self.program_name_default = 'face'
+        self.programs_default = {
             'face': self.context.program(vertex_shader=mesh_vertex_shader, fragment_shader=fragment_shader_color_face),
             'smooth': self.context.program(vertex_shader=mesh_vertex_shader, fragment_shader=fragment_shader_color_smooth),
             'normal': self.context.program(vertex_shader=mesh_vertex_shader, fragment_shader=fragment_shader_normal),
+            'flat': self.context.program(vertex_shader=mesh_vertex_shader, fragment_shader=fragment_shader_flat),
+            'wireframe': self.context.program(vertex_shader=mesh_vertex_shader, geometry_shader=mesh_wireframe_geometry_shader, fragment_shader=fragment_shader_color_face),
         }
-        self.mesh_program = self.mesh_programs['face']
-
-        self.wireframe_program = self.context.program(vertex_shader=mesh_vertex_shader, geometry_shader=mesh_wireframe_geometry_shader, fragment_shader=fragment_shader_color_face)
-
-        self.points_program = self.context.program(vertex_shader=mesh_vertex_shader, fragment_shader=fragment_shader_flat)
 
         while not glfw.window_should_close(self.window):
             glfw.poll_events()
@@ -80,18 +77,12 @@ class MeshViewer:
 
             # Update shader data
             model_view_matrix = self.camera.view_matrix @ self.model_matrix
-            self.mesh_program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
-            self.mesh_program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
-
-            self.wireframe_program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
-            self.wireframe_program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
-
-            self.points_program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
-            self.points_program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
 
             for _, (mode, configure_func, vaos) in self.vaos_all.items():
                 configure_func(self.context)
                 for v in vaos:
+                    v.program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
+                    v.program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
                     v.render(mode=mode)
 
             # Render the coordinate system 
@@ -243,30 +234,38 @@ class MeshViewer:
         self.model_matrix = model_matrix
         self.inverse_model_matrix = np.linalg.inv(self.model_matrix)
 
-    def set_shading_mode(self, mode, object_name=None):
-        self.__enqueue_command(lambda: self.__set_shading_mode(mode, object_name))
+    def set_material(self, material, index=0, object_name='default'):
+        self.__enqueue_command(lambda: self.__set_material(material, index, object_name))
 
-    def __set_shading_mode(self, mode, object_name):
-        self.mesh_program_name = mode
-        self.mesh_program = self.mesh_programs[self.mesh_program_name]
+    def __set_material(self, material, index, object_name):
+        if isinstance(material, str):
+            material = self.programs_default[material]
+        
+        buffers = self.buffers_all[object_name]
 
-        if object_name is None:
-            # Update all objects
-            for k in list(self.vaos_all.keys()):
-                self.__update_vao(k)
+        if buffers['type'] == 'mesh':
+            vao = self.__create_mesh_vao(buffers, material)
+        elif buffers['type'] == 'points':
+            vao = self.__create_point_vao(buffers, material)
+
+        if index >= len(self.vaos_all[object_name][2]):
+            self.vaos_all[object_name][2].append(vao)
         else:
-            self.__update_vao(object_name)
+            self.vaos_all[object_name][2][index] = vao
 
-    def set_wireframe(self, wireframe, object_name=None):
-        self.__enqueue_command(lambda: self.__set_wireframe(wireframe, object_name))
+    def remove_material(self, index=0, object_name='default'):
+        self.__enqueue_command(lambda: self.__remove_material(index, object_name))
 
-    def __set_wireframe(self, wireframe, object_name):
-        if object_name is None:
-            # Update all objects
-            for k in list(self.vaos_all.keys()):
-                self.__update_vao(k, wireframe=wireframe)
+    def __remove_material(self, index, object_name):
+        vaos = self.vaos_all[object_name][2]
+
+        if len(vaos) == 0:
+            return
+
+        if index >= len(vaos):
+            vaos.pop()
         else:
-            self.__update_vao(object_name, wireframe=wireframe)
+            vaos.pop(index)
 
     def __enqueue_command(self, command, wait=False):
         if not wait:
@@ -279,50 +278,54 @@ class MeshViewer:
             self.command_queue.put(execute_and_set)
             event.wait()
 
-    def __update_vao(self, object_name, wireframe=False):
+    def __create_content_for_program(self, buffers, program):
+        # [
+        #     # Map in_vert to the first 2 floats
+        #     # Map in_color to the next 3 floats
+        #     #(self.vbo, '2f 3f', 'in_vert', 'in_color'),
+        #     (self.vbo, '3f', 'position'),
+        #     #(self.vnbo, '3f', 'normal'),
+        #     (self.vcbo, '3f', 'color'),
+        # ],
+
+        content = [(buffers['vbo'], '3f', 'position')]
+
+        if 'vnbo' in buffers and program.get('normal', None):
+            content += [(buffers['vnbo'], '3f', 'normal')]
+
+        if 'vcbo' in buffers and program.get('color', None):  
+            content += [(buffers['vcbo'], '3f', 'color')]
+        
+        return content
+
+    def __create_mesh_vao(self, buffers, program):
+        return self.context.vertex_array(
+            program,
+            self.__create_content_for_program(buffers, program),
+            index_buffer=buffers['ibo'],
+            index_element_size=4
+        )
+    
+    def __create_point_vao(self, buffers, program):
+        return self.context.vertex_array(
+            program,
+            self.__create_content_for_program(buffers, program)
+        )
+
+    def __update_vao(self, object_name):
         assert object_name in self.buffers_all
 
         buffers = self.buffers_all[object_name]
 
         if buffers['type'] == 'mesh':
-            def create_content_for_program(program):
-                # [
-                #     # Map in_vert to the first 2 floats
-                #     # Map in_color to the next 3 floats
-                #     #(self.vbo, '2f 3f', 'in_vert', 'in_color'),
-                #     (self.vbo, '3f', 'position'),
-                #     #(self.vnbo, '3f', 'normal'),
-                #     (self.vcbo, '3f', 'color'),
-                # ],
-
-                content = [(buffers['vbo'], '3f', 'position')]
-
-                if 'vnbo' in buffers and program.get('normal', None):
-                    content += [(buffers['vnbo'], '3f', 'normal')]
-
-                if 'vcbo' in buffers and program.get('color', None):  
-                    content += [(buffers['vcbo'], '3f', 'color')]
-
-                return content
-
-            vaos = [
-                self.context.vertex_array(
-                    self.mesh_program,
-                    create_content_for_program(self.mesh_program),
-                    index_buffer=buffers['ibo'],
-                    index_element_size=4
-                ),
-            ]
-
-            if wireframe:
-                vaos += [
-                    self.context.vertex_array(
-                        self.wireframe_program,
-                        create_content_for_program(self.wireframe_program),
-                        index_buffer=buffers['ibo'],
-                        index_element_size=4
-                    )
-                ]
+            if object_name in self.vaos_all:
+                # Update the VAOs and preserve the programs
+                vaos = []
+                for v in self.vaos_all[object_name][2]:
+                    vaos += [self.__create_mesh_vao(buffers, v.program)]
+            else:
+                # Create a VAO with default material
+                vaos = [self.__create_mesh_vao(buffers, self.programs_default[self.program_name_default])]
 
             # We control the 'in_vert' and `in_color' variables
             self.vaos_all[object_name] = (
@@ -331,14 +334,6 @@ class MeshViewer:
                 vaos
             )
         elif buffers['type'] == 'points':
-            content = [(buffers['vbo'], '3f', 'position')]
-
-            if 'vnbo' in buffers and self.points_program.get('normal', None):
-                content += [(buffers['vnbo'], '3f', 'normal')]
-
-            if 'vcbo' in buffers and self.points_program.get('color', None):  
-                content += [(buffers['vcbo'], '3f', 'color')]
-
             def configure_context(context):
                 context.point_size = buffers['point_size']
 
@@ -346,10 +341,7 @@ class MeshViewer:
             self.vaos_all[object_name] = (
                 moderngl.POINTS,
                 configure_context,
-                [self.context.vertex_array(
-                    self.points_program,
-                    content
-                )]
+                [self.__create_point_vao(buffers, self.programs_default['flat'])]
             )
         else:
             raise RuntimeError(f"Unknown object type {buffers['type']}")
