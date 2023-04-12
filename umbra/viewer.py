@@ -227,6 +227,16 @@ class MeshViewer:
         buffers['vcbo'] = self.context.buffer(c_flat)
         self.__update_vao(object_name)
 
+    def remove_object(self, object_name):
+        self.__enqueue_command(lambda: self.__remove_object(object_name))
+        
+    def __remove_object(self, object_name):
+        assert object_name in self.buffers_all
+        assert object_name in self.vaos_all
+
+        self.buffers_all.pop(object_name, None)
+        self.vaos_all.pop(object_name, None)
+
     def set_model_matrix(self, model_matrix):
         self.__enqueue_command(lambda: self.__set_model_matrix(model_matrix))
 
