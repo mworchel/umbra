@@ -57,7 +57,7 @@ class MeshViewer:
             'smooth': self.context.program(vertex_shader=mesh_vertex_shader, fragment_shader=fragment_shader_color_smooth),
             'normal': self.context.program(vertex_shader=mesh_vertex_shader, fragment_shader=fragment_shader_normal),
             'flat': self.context.program(vertex_shader=mesh_vertex_shader, fragment_shader=fragment_shader_flat),
-            'wireframe': self.context.program(vertex_shader=mesh_vertex_shader, geometry_shader=mesh_wireframe_geometry_shader, fragment_shader=fragment_shader_color_face),
+            'wireframe': self.context.program(vertex_shader=mesh_vertex_shader, geometry_shader=mesh_wireframe_geometry_shader, fragment_shader=fragment_shader_flat),
         }
 
         while not glfw.window_should_close(self.window):
