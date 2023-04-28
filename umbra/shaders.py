@@ -38,20 +38,41 @@ mesh_wireframe_geometry_shader = '''
 layout (triangles) in;
 layout (line_strip, max_vertices = 4) out;
 
+in VertexData
+{
+    vec3 position;
+    vec3 normal;
+    vec3 position_mv;
+    vec3 normal_mv;
+    vec3 color;
+} gs_in [];
+
+out VertexData
+{
+    vec3 position;
+    vec3 normal;
+    vec3 position_mv;
+    vec3 normal_mv;
+    vec3 color;
+} gs_out;
+
 void main() {
     vec4 z_scale = vec4(1.0, 1.0, 0.9999, 1.0);
 
-    gl_Position = gl_in[0].gl_Position * z_scale; 
-    EmitVertex();
+    for (int i = 0; i < 4; ++i)
+    {
+        int j = i % 3;
 
-    gl_Position = gl_in[1].gl_Position * z_scale;
-    EmitVertex();
-    
-    gl_Position = gl_in[2].gl_Position * z_scale;
-    EmitVertex();
+        gs_out.position    = gs_in[j].position;
+        gs_out.normal      = gs_in[j].normal;
+        gs_out.position_mv = gs_in[j].position_mv;
+        gs_out.normal_mv   = gs_in[j].normal_mv;
+        gs_out.color       = 0.5*gs_in[j].color;
 
-    gl_Position = gl_in[0].gl_Position * z_scale;
-    EmitVertex();
+        gl_Position = gl_in[j].gl_Position * z_scale; 
+
+        EmitVertex();
+    }
 
     EndPrimitive();
 }  
