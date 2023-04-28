@@ -1,5 +1,5 @@
 mesh_vertex_shader = '''
-                #version 330
+                #version 450
                 in vec3 position;
                 in vec3 normal;
                 in vec3 color;
@@ -34,7 +34,7 @@ mesh_vertex_shader = '''
 '''
 
 mesh_wireframe_geometry_shader = '''
-#version 330 core
+#version 450
 layout (triangles) in;
 layout (line_strip, max_vertices = 4) out;
 
@@ -58,7 +58,7 @@ void main() {
 '''
 
 fragment_shader_color_smooth = '''
-                #version 330
+                #version 450
 
                 in VertexData
                 {
@@ -77,7 +77,7 @@ fragment_shader_color_smooth = '''
 '''
 
 fragment_shader_color_face = '''
-                #version 330
+                #version 450
 
                 in VertexData
                 {
@@ -100,7 +100,7 @@ fragment_shader_color_face = '''
 '''
 
 fragment_shader_normal = '''
-                #version 330
+                #version 450
 
                 in VertexData
                 {
@@ -119,7 +119,7 @@ fragment_shader_normal = '''
 '''
 
 fragment_shader_flat = '''
-                #version 330
+                #version 450
 
                 in VertexData
                 {
@@ -138,7 +138,7 @@ fragment_shader_flat = '''
 '''
 
 fragment_shader_position_normal = '''
-                #version 330
+                #version 450
 
                 in VertexData
                 {
