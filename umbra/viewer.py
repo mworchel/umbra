@@ -175,6 +175,13 @@ class MeshViewer:
 
         return colors
 
+    def clear(self):
+        self.__enqueue_command(lambda: self.__clear())
+
+    def __clear(self):
+        self.buffers_all = {}
+        self.vaos_all    = {}
+
     def set_mesh(self, v, f, n=None, c=None, object_name='default'):
         self.__enqueue_command(lambda: self.__set_mesh(v, f, n, c, object_name))
 
