@@ -234,6 +234,28 @@ class MeshViewer:
         buffers['vcbo'] = self.context.buffer(c_flat)
         self.__update_vao(object_name)
 
+    def set_lines(self, start: np.ndarray, end: np.ndarray, c=None, object_name='default'):
+        self.__enqueue_command(lambda: self.__set_lines(start, end, c, object_name))
+    
+    def __set_lines(self, start: np.ndarray, end: np.ndarray, c=None, object_name='default'):
+        # Interleave the start and end tensors
+        v = np.empty((start.shape[0]+end.shape[0], start.shape[1]), dtype=start.dtype)
+        v[0::2, :] = start
+        v[1::2, :] = end
+        v_flat     = v.ravel().astype(np.float32)
+        c_flat     = self.__expand_colors(start, c).ravel().astype(np.float32)
+        
+        if not object_name in self.buffers_all:
+            self.buffers_all[object_name] = {'type': 'lines'}
+        buffers = self.buffers_all[object_name]
+
+        if buffers['type'] != 'lines':
+            raise RuntimeError(f"Entity '{object_name}' has type '{buffers['type']}' and is not a line set.")
+
+        buffers['vbo']  = self.context.buffer(v_flat)
+        buffers['vcbo'] = self.context.buffer(c_flat)
+        self.__update_vao(object_name)
+
     def remove_object(self, object_name):
         self.__enqueue_command(lambda: self.__remove_object(object_name))
         
@@ -329,6 +351,12 @@ class MeshViewer:
             self.__create_content_for_program(buffers, program)
         )
 
+    def __create_line_vao(self, buffers, program):
+        return self.context.vertex_array(
+            program,
+            self.__create_content_for_program(buffers, program)
+        )
+
     def __update_vao(self, object_name):
         assert object_name in self.buffers_all
 
@@ -359,6 +387,13 @@ class MeshViewer:
                 moderngl.POINTS,
                 configure_context,
                 [self.__create_point_vao(buffers, self.programs_default['flat'])]
+            )
+        elif buffers['type'] == 'lines':
+            # We control the 'in_vert' and `in_color' variables
+            self.vaos_all[object_name] = (
+                moderngl.LINES,
+                lambda context: None,
+                [self.__create_line_vao(buffers, self.programs_default['flat'])]
             )
         else:
             raise RuntimeError(f"Unknown object type {buffers['type']}")
