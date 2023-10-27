@@ -1,3 +1,5 @@
+import imgui
+from imgui.integrations.glfw import GlfwRenderer
 import glfw
 from queue import Queue
 import moderngl
@@ -26,6 +28,7 @@ class MeshViewer:
         self.user_mouse_drag_callback = None
         self.user_mouse_button_callback = None
         self.user_key_callback = None
+        self.user_gui_callback = None
 
         self.device = device
 
@@ -39,6 +42,10 @@ class MeshViewer:
     def run(self):
         self.create_window()
         self.is_open = True
+
+        # Initialize imgui
+        imgui.create_context()
+        self.imgui_renderer = GlfwRenderer(self.window, attach_callbacks=False)
 
         # Create the camera and its controller
         self.viewport = (0, 0, self.width, self.height)
@@ -62,6 +69,7 @@ class MeshViewer:
 
         while not glfw.window_should_close(self.window):
             glfw.poll_events()
+            self.imgui_renderer.process_inputs()
             glfw.make_context_current(self.window)
 
             # Execute all queued commands
@@ -87,6 +95,19 @@ class MeshViewer:
 
             # Render the coordinate system 
             self.coordinate_system.render(self.context, self.camera)
+
+            # Render the GUI
+            imgui.new_frame()
+
+            if self.user_gui_callback:
+                # TODO: Implement error handling!
+                try:
+                    self.user_gui_callback(self)
+                except RuntimeError as e:
+                    print(f"Exception in GUI callback: {e}")
+
+            imgui.render()
+            self.imgui_renderer.render(imgui.get_draw_data())
 
             glfw.swap_buffers(self.window)
     
@@ -115,10 +136,18 @@ class MeshViewer:
         glfw.set_cursor_pos_callback(self.window, self.mouse_event_callback)
         glfw.set_mouse_button_callback(self.window, self.mouse_button_callback)
         glfw.set_scroll_callback(self.window, self.mouse_scroll_callback)
-        glfw.set_framebuffer_size_callback(self.window, self.window_resize_callback)
+        glfw.set_framebuffer_size_callback(self.window, self.framebuffer_resize_callback)
+        glfw.set_window_size_callback(self.window, self.window_resize_callback)
         glfw.set_key_callback(self.window, self.key_callback)
+        glfw.set_char_callback(self.window, self.char_callback)
 
     def mouse_event_callback(self, window, xpos, ypos):
+        self.imgui_renderer.mouse_callback(window, xpos, ypos)
+
+        # See: https://github.com/ocornut/imgui/blob/master/docs/FAQ.md#q-how-can-i-tell-whether-to-dispatch-mousekeyboard-to-dear-imgui-or-my-application
+        if imgui.get_io().want_capture_mouse:
+            return
+
         if self.drag_point_left:
             if self.user_mouse_drag_callback:
                 self.user_mouse_drag_callback(self.drag_point_left[0], xpos, self.drag_point_left[1], ypos, 0)
@@ -131,6 +160,9 @@ class MeshViewer:
             self.drag_point_right = (xpos, ypos)
 
     def mouse_button_callback(self, window, button, action, mods):
+        if imgui.get_io().want_capture_mouse:
+            return
+
         if self.user_mouse_button_callback:
             self.user_mouse_button_callback(button, action, mods)
 
@@ -149,20 +181,36 @@ class MeshViewer:
                 self.drag_point_right = None
 
     def mouse_scroll_callback(self, window, x_offset: float, y_offset: float):
+        self.imgui_renderer.scroll_callback(window, x_offset, y_offset)
+
+        if imgui.get_io().want_capture_mouse:
+            return
+
         self.camera_controller.handle_scroll(x_offset, y_offset)
 
         if self.user_mouse_scroll_callback:
             self.user_mouse_scroll_callback(x_offset, y_offset)
 
-    def window_resize_callback(self, window, width, height):
+    def framebuffer_resize_callback(self, window, width, height):
         if width > 0 and height > 0:
             self.viewport = (0, 0, width, height)
             self.context.viewport = self.viewport
             self.camera.viewport = self.viewport
 
+    def window_resize_callback(self, window, width, height):
+        self.imgui_renderer.resize_callback(window, width, height)
+
     def key_callback(self, window, key, scancode, action, mods):
+        self.imgui_renderer.keyboard_callback(window, key, scancode, action, mods)
+
+        if imgui.get_io().want_capture_keyboard:
+            return
+
         if self.user_key_callback:
             self.user_key_callback(key, scancode, action, mods)
+
+    def char_callback(self, window, char):
+        self.imgui_renderer.char_callback(window, char)
 
     def __expand_colors(self, vertices, colors):
         if colors is None:
