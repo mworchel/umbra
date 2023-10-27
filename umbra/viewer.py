@@ -243,7 +243,7 @@ class MeshViewer:
         v[0::2, :] = start
         v[1::2, :] = end
         v_flat     = v.ravel().astype(np.float32)
-        c_flat     = self.__expand_colors(start, c).ravel().astype(np.float32)
+        c_flat     = self.__expand_colors(start, c).repeat(2, axis=0).ravel().astype(np.float32)
         
         if not object_name in self.buffers_all:
             self.buffers_all[object_name] = {'type': 'lines'}
