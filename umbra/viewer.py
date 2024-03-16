@@ -14,7 +14,7 @@ from .shaders import *
 from .utils import to_opengl_matrix
 
 class MeshViewer:
-    def __init__(self, width=600, height=600, name="OpenGL Window", device='cuda:0'):
+    def __init__(self, width=600, height=600, name="OpenGL Window"):
         self.width = width
         self.height = height
         self.name = name
@@ -29,8 +29,6 @@ class MeshViewer:
         self.user_mouse_button_callback = None
         self.user_key_callback = None
         self.user_gui_callback = None
-
-        self.device = device
 
         # Buffers and vertex array objects by name
         self.buffers_all = {}
