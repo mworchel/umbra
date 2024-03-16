@@ -15,7 +15,7 @@ setup(
     version="0.0.3",
     author="Markus Worchel",
     author_email="m.worchel@tu-berlin.de",
-    description="Umbra: An Interactive 3D Viewer in Python",
+    description="UMBRA: A Concurrent, Interactive 3D Viewer for Python",
     url="https://github.com/mworchel/umbra",
     license="MIT",
     long_description=long_description,
