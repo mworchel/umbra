@@ -2,6 +2,7 @@ import imgui
 from imgui.integrations.glfw import GlfwRenderer
 import glfw
 from queue import Queue
+import OpenGL.GL
 import moderngl
 import numpy as np
 import threading
@@ -130,6 +131,8 @@ class MeshViewer:
     
         glfw.make_context_current(self.window)
         self.context = moderngl.create_context()
+
+        OpenGL.GL.glEnable(OpenGL.GL.GL_FRAMEBUFFER_SRGB)
 
         glfw.set_cursor_pos_callback(self.window, self.mouse_event_callback)
         glfw.set_mouse_button_callback(self.window, self.mouse_button_callback)
