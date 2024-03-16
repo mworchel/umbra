@@ -11,8 +11,13 @@ This viewer is intended for visualizing experiments in computer graphics and com
 - **concurrent**: some viewers control the main loop, which, for example, makes them unsuitable for visualization the progress of an ongoing iterative optimization. UMBRA runs in a separate thread concurrently to the host Python script or Jupyter notebook.
 - **hackable**: most viewers are not implemented in Python but in C++ or JavaScript and are only exposed via bindings, which makes it difficult to modify or customize parts of the renderer. UMBRA is fully implemented in Python using moderngl. The main rendering loop can be easily modified, for example to [shade a mesh using a neural network with PyTorch](https://github.com/fraunhoferhhi/neural-deferred-shading).
 
+Install the viewer directly from this repository:
 
-This is a minimal example for rendering a moving point cloud:
+```bash
+pip install git+https://github.com/mworchel/umbra.git
+```
+
+A minimal example for rendering a moving point cloud:
 
 ```python
 import numpy as np
