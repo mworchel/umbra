@@ -12,7 +12,7 @@ with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name="umbra",
-    version="0.0.5",
+    version="0.0.6",
     author="Markus Worchel",
     author_email="m.worchel@tu-berlin.de",
     description="UMBRA: A Concurrent, Interactive 3D Viewer for Python",
