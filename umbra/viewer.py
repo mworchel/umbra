@@ -4,7 +4,6 @@ import glfw
 from queue import Queue
 import moderngl
 import numpy as np
-from OpenGL.GL import GL_TEXTURE_2D
 import threading
 
 from .camera import PerspectiveCamera
