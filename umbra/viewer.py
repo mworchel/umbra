@@ -34,12 +34,13 @@ class MeshViewer:
         self.buffers_all = {}
         self.vaos_all = {}
 
+        self.is_open = True
+
         self.render_thread = threading.Thread(target=self.run)
         self.render_thread.start()
 
     def run(self):
         self.create_window()
-        self.is_open = True
 
         # Initialize imgui
         imgui.create_context()
