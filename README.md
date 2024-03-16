@@ -1,6 +1,8 @@
 # UMBRA: A Concurrent, Interactive 3D Viewer for Python
 
-This repository contains an interactive 3D viewer for Python. I use variants of this viewer for real-time visualization in most of my research projects and as such, it has an extremely brittle API that can be subject to radical changes at any time. Also, the code is pretty messy. Therefore, use with caution. UMBRA may or may not stand for: **U**nderwhelmingly **M**ade, **B**ut **R**enders **A**mazingly.
+This repository contains an interactive 3D viewer for Python. I use variants of this viewer for real-time visualization in most of my research projects and as such, it has an extremely brittle API that can be subject to radical changes at any time. Also, the code is pretty messy. Therefore, use with caution. 
+
+UMBRA may or may not stand for: **U**nderwhelmingly **M**ade, **B**ut **R**enders **A**mazingly.
 
 *"Why a custom viewer if there is already XYZ?"*. 
 
