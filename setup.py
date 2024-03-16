@@ -21,6 +21,6 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     packages=['umbra'],
-    install_requires=["glfw>=2.5.0", "moderngl>=5.6.0", "pyopengl>=3.1.6", "numpy>=1.22.0"],
+    install_requires=["glfw>=2.5.0", "moderngl>=5.6.0", "pyopengl>=3.1.6", "numpy>=1.22.0", "imgui>=1.4.1"],
     python_requires=">=3.8"
 )
