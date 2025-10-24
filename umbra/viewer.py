@@ -326,8 +326,9 @@ class MeshViewer:
         self.__enqueue_command(lambda: self.__set_material(material, index, object_name))
 
     def __set_material(self, material, index, object_name):
-        if isinstance(material, str):
-            material = self.programs_default[material]
+        if not material in self.programs_default:
+            raise RuntimeError(f"Material '{material}' is not a valid material name.")
+        material = self.programs_default[material]
         
         buffers = self.buffers_all[object_name]
 
