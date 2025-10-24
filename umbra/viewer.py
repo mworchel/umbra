@@ -331,10 +331,10 @@ class MeshViewer:
         
         buffers = self.buffers_all[object_name]
 
-        if buffers['type'] == 'mesh':
-            vao = self.__create_mesh_vao(buffers, material)
-        elif buffers['type'] == 'points':
-            vao = self.__create_point_vao(buffers, material)
+        if buffers['type'] != 'mesh':
+            raise RuntimeError(f"Materials can only be set for mesh objects (object '{object_name}' is of type '{buffers['type']}').")
+
+        vao = self.__create_mesh_vao(buffers, material)
 
         if index >= len(self.vaos_all[object_name][2]):
             self.vaos_all[object_name][2].append(vao)
