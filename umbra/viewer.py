@@ -11,6 +11,7 @@ from .camera import PerspectiveCamera
 from .controller import OrbitControl
 from .primitives import Quad, CoordinateSystem
 from .shaders import *
+from .shaders_ import *
 from .utils import to_opengl_matrix
 
 class MeshViewer:
@@ -68,6 +69,8 @@ class MeshViewer:
             'wireframe': self.context.program(vertex_shader=mesh_vertex_shader, geometry_shader=mesh_wireframe_geometry_shader, fragment_shader=fragment_shader_flat),
         }
 
+        self.program_points = self.context.program(vertex_shader=point_vs, fragment_shader=point_fs)
+
         while not glfw.window_should_close(self.window):
             glfw.poll_events()
             self.imgui_renderer.process_inputs()
@@ -88,11 +91,15 @@ class MeshViewer:
             model_view_matrix = self.camera.view_matrix @ self.model_matrix
 
             for _, obj in self.objects.items():
-                obj['render_config']['configure_context'](self.context)
                 for vao in obj['vaos']:
                     vao.program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
                     vao.program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
-                    vao.render(mode=obj['render_config']['mode'])
+
+                    # TODO: Check implications for shared programs (between meshes)
+                    for name, value in obj.get('uniforms', {}).items():
+                        vao.program[name] = value
+
+                    vao.render(mode=obj['primitive_topology'])
 
             # Render the coordinate system 
             self.coordinate_system.render(self.context, self.camera)
@@ -135,6 +142,7 @@ class MeshViewer:
         self.context = moderngl.create_context()
 
         OpenGL.GL.glEnable(OpenGL.GL.GL_FRAMEBUFFER_SRGB)
+        OpenGL.GL.glEnable(OpenGL.GL.GL_PROGRAM_POINT_SIZE)
 
         glfw.set_cursor_pos_callback(self.window, self.mouse_event_callback)
         glfw.set_mouse_button_callback(self.window, self.mouse_button_callback)
@@ -238,7 +246,7 @@ class MeshViewer:
     def __get_or_create_object(self, name: str, expected_type: str):
         # Obtain the object information (if not existing, create it)
         if not name in self.objects:
-            self.objects[name] = {'type': expected_type, 'buffers': {}, 'vaos': [], 'render_config': {}, 'params': {}}
+            self.objects[name] = {'type': expected_type, 'buffers': {}, 'vaos': [], 'primitive_topology': None, 'uniforms': {}}
 
         obj = self.objects[name]
 
@@ -266,8 +274,7 @@ class MeshViewer:
         obj['buffers']['vcbo'] = self.context.buffer(c_flat)
         obj['buffers']['ibo'] = self.context.buffer(f_flat)
         
-        obj['render_config']['mode']              = moderngl.TRIANGLES
-        obj['render_config']['configure_context'] = lambda context: None
+        obj['primitive_topology'] = moderngl.TRIANGLES
 
         if len(obj['vaos']) > 0:
             # Discard the existing VAOs and recreate them (buffers may have changed)
@@ -287,9 +294,6 @@ class MeshViewer:
         # Obtain the object information (if not existing, create them)
         obj = self.__get_or_create_object(object_name, expected_type='points')
 
-        # Store additional parameters (typically passed as uniforms to the shader)
-        obj['params']['point_size'] = point_size
-
         # Fill buffers for this object
         if n is not None:
             n_flat = n.ravel().astype('f4')
@@ -300,14 +304,9 @@ class MeshViewer:
         obj['buffers']['vbo']  = self.context.buffer(v_flat)
         obj['buffers']['vcbo'] = self.context.buffer(c_flat)
 
-        # Create a default variant of the object (rendered using the default material)
-        def configure_context(context):
-            context.point_size = obj['params']['point_size']
-
-        obj['render_config']['mode']              = moderngl.POINTS
-        obj['render_config']['configure_context'] = configure_context
-
-        obj['vaos'] = [self.__create_point_vao(obj['buffers'], self.programs_default['flat'])]
+        obj['primitive_topology'] = moderngl.POINTS
+        obj['uniforms'] = { 'point_size': point_size }
+        obj['vaos'] = [self.__create_point_vao(obj['buffers'], self.program_points)]
 
     def set_lines(self, start: np.ndarray, end: np.ndarray, c=None, object_name='default'):
         self.__enqueue_command(lambda: self.__set_lines(start, end, c, object_name))
@@ -327,9 +326,7 @@ class MeshViewer:
         obj['buffers']['vbo']  = self.context.buffer(v_flat)
         obj['buffers']['vcbo'] = self.context.buffer(c_flat)
 
-        obj['render_config']['mode']              = moderngl.LINES
-        obj['render_config']['configure_context'] = lambda context: None
-
+        obj['primitive_topology'] = moderngl.LINES
         obj['vaos'] = [self.__create_line_vao(obj['buffers'], self.programs_default['flat'])]
 
     def remove_object(self, object_name):
