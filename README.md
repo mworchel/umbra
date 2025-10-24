@@ -2,8 +2,6 @@
 
 This repository contains an interactive 3D viewer for Python. I use variants of this viewer for real-time visualization in most of my research projects and as such, it has an extremely brittle API that can be subject to radical changes at any time. Also, the code is pretty messy. Use with caution ⚠️. 
 
-UMBRA may or may not stand for: **U**nderwhelmingly **M**ade, **B**ut **R**enders **A**mazingly.
-
 *"Why a custom viewer if there is already XYZ?"*. 
 
 This viewer is intended for visualizing experiments in computer graphics and computer vision research and there are two key requirements: 
@@ -81,7 +79,7 @@ viewer.set_mesh(v, f, c=c, object_name="my_mesh")
 viewer.set_mesh(v, f, c=c, n=n, object_name="my_mesh")
 
 # Change the material. The first parameter can be one of
-# ['face', 'smooth', 'normal', 'flat', 'wireframe'] or a moderngl.Program
+# ['face', 'smooth', 'normal', 'flat', 'wireframe']
 viewer.set_material('wireframe', index=0, object_name="my_mesh")
 
 # An object can have multiple materials (e.g. to draw wireframe on top of the mesh)
