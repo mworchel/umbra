@@ -31,8 +31,7 @@ class MeshViewer:
         self.user_gui_callback = None
 
         # Buffers and vertex array objects by name
-        self.buffers_all = {}
-        self.vaos_all = {}
+        self.objects = {}
 
         self.is_open = True
 
@@ -51,6 +50,9 @@ class MeshViewer:
         self.context.viewport = self.viewport
         self.camera = PerspectiveCamera(self.viewport)
         self.camera_controller = OrbitControl(self.camera)
+
+        # The model matrix exists for legacy reasons.
+        # (it transforms *all* objects in the scene)
         self.model_matrix = np.eye(4)
         self.inverse_model_matrix = np.eye(4)
 
@@ -85,12 +87,12 @@ class MeshViewer:
             # Update shader data
             model_view_matrix = self.camera.view_matrix @ self.model_matrix
 
-            for _, (mode, configure_func, vaos) in self.vaos_all.items():
-                configure_func(self.context)
-                for v in vaos:
-                    v.program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
-                    v.program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
-                    v.render(mode=mode)
+            for _, obj in self.objects.items():
+                obj['render_config']['configure_context'](self.context)
+                for vao in obj['vaos']:
+                    vao.program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
+                    vao.program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
+                    vao.render(mode=obj['render_config']['mode'])
 
             # Render the coordinate system 
             self.coordinate_system.render(self.context, self.camera)
@@ -228,34 +230,52 @@ class MeshViewer:
         self.__enqueue_command(lambda: self.__clear())
 
     def __clear(self):
-        self.buffers_all = {}
-        self.vaos_all    = {}
+        self.objects = {}
 
     def set_mesh(self, v, f, n=None, c=None, object_name='default'):
         self.__enqueue_command(lambda: self.__set_mesh(v, f, n, c, object_name))
+
+    def __get_or_create_object(self, name: str, expected_type: str):
+        # Obtain the object information (if not existing, create it)
+        if not name in self.objects:
+            self.objects[name] = {'type': expected_type, 'buffers': {}, 'vaos': [], 'render_config': {}, 'params': {}}
+
+        obj = self.objects[name]
+
+        # The type of the object must be preserved
+        if obj['type'] != expected_type:
+            raise RuntimeError(f"Entity '{name}' has type '{obj['type']}' and not of type '{expected_type}'.")
+        
+        return obj
 
     def __set_mesh(self, v, f, n, c, object_name):
         v_flat = v.ravel().astype('f4')
         c_flat = self.__expand_colors(v, c).ravel().astype('f4')
         f_flat = f.ravel().astype('i4')
 
-        if not object_name in self.buffers_all:
-            self.buffers_all[object_name] = {'type': 'mesh'}
-        buffers = self.buffers_all[object_name]
+        obj = self.__get_or_create_object(object_name, expected_type='mesh')
 
-        if buffers['type'] != 'mesh':
-            raise RuntimeError(f"Entity '{object_name}' has type '{buffers['type']}' and is not a mesh.")
-
+        # Fill buffers for this object
         if n is not None:
             n_flat = n.ravel().astype('f4')
-            buffers['vnbo'] = self.context.buffer(n_flat)
-        elif 'vnbo' in buffers:
-            del buffers['vnbo']
+            obj['buffers']['vnbo'] = self.context.buffer(n_flat)
+        elif 'vnbo' in obj['buffers']:
+            del obj['buffers']['vnbo']
 
-        buffers['vbo'] = self.context.buffer(v_flat)
-        buffers['vcbo'] = self.context.buffer(c_flat)
-        buffers['ibo'] = self.context.buffer(f_flat)
-        self.__update_vao(object_name)
+        obj['buffers']['vbo'] = self.context.buffer(v_flat)
+        obj['buffers']['vcbo'] = self.context.buffer(c_flat)
+        obj['buffers']['ibo'] = self.context.buffer(f_flat)
+        
+        obj['render_config']['mode']              = moderngl.TRIANGLES
+        obj['render_config']['configure_context'] = lambda context: None
+
+        if len(obj['vaos']) > 0:
+            # Discard the existing VAOs and recreate them (buffers may have changed)
+            for i in range(len(obj['vaos'])):
+                obj['vaos'][i] = self.__create_mesh_vao(obj['buffers'], obj['vaos'][i].program)
+        else:
+            # Create a default VAO with default material
+            obj['vaos'] = [self.__create_mesh_vao(obj['buffers'], self.programs_default[self.program_name_default])]
 
     def set_points(self, v, n=None, c=None, point_size=5, object_name='default'):
         self.__enqueue_command(lambda: self.__set_points(v, n, c, point_size, object_name))
@@ -264,24 +284,30 @@ class MeshViewer:
         v_flat = v.ravel().astype(np.float32)
         c_flat = self.__expand_colors(v, c).ravel().astype(np.float32)
         
-        if not object_name in self.buffers_all:
-            self.buffers_all[object_name] = {'type': 'points'}
-        buffers = self.buffers_all[object_name]
+        # Obtain the object information (if not existing, create them)
+        obj = self.__get_or_create_object(object_name, expected_type='points')
 
-        if buffers['type'] != 'points':
-            raise RuntimeError(f"Entity '{object_name}' has type '{buffers['type']}' and is not a point cloud.")
+        # Store additional parameters (typically passed as uniforms to the shader)
+        obj['params']['point_size'] = point_size
 
-        buffers['point_size'] = point_size
-
+        # Fill buffers for this object
         if n is not None:
             n_flat = n.ravel().astype('f4')
-            buffers['vnbo'] = self.context.buffer(n_flat)
-        elif 'vnbo' in buffers:
-            del buffers['vnbo']
+            obj['buffers']['vnbo'] = self.context.buffer(n_flat)
+        elif 'vnbo' in obj['buffers']:
+            del obj['buffers']['vnbo']
 
-        buffers['vbo'] = self.context.buffer(v_flat)
-        buffers['vcbo'] = self.context.buffer(c_flat)
-        self.__update_vao(object_name)
+        obj['buffers']['vbo']  = self.context.buffer(v_flat)
+        obj['buffers']['vcbo'] = self.context.buffer(c_flat)
+
+        # Create a default variant of the object (rendered using the default material)
+        def configure_context(context):
+            context.point_size = obj['params']['point_size']
+
+        obj['render_config']['mode']              = moderngl.POINTS
+        obj['render_config']['configure_context'] = configure_context
+
+        obj['vaos'] = [self.__create_point_vao(obj['buffers'], self.programs_default['flat'])]
 
     def set_lines(self, start: np.ndarray, end: np.ndarray, c=None, object_name='default'):
         self.__enqueue_command(lambda: self.__set_lines(start, end, c, object_name))
@@ -294,26 +320,24 @@ class MeshViewer:
         v_flat     = v.ravel().astype(np.float32)
         c_flat     = self.__expand_colors(start, c).repeat(2, axis=0).ravel().astype(np.float32)
         
-        if not object_name in self.buffers_all:
-            self.buffers_all[object_name] = {'type': 'lines'}
-        buffers = self.buffers_all[object_name]
+        # Obtain the object information (if not existing, create them)
+        obj = self.__get_or_create_object(object_name, expected_type='lines')
 
-        if buffers['type'] != 'lines':
-            raise RuntimeError(f"Entity '{object_name}' has type '{buffers['type']}' and is not a line set.")
+        # Fill buffers for this object
+        obj['buffers']['vbo']  = self.context.buffer(v_flat)
+        obj['buffers']['vcbo'] = self.context.buffer(c_flat)
 
-        buffers['vbo']  = self.context.buffer(v_flat)
-        buffers['vcbo'] = self.context.buffer(c_flat)
-        self.__update_vao(object_name)
+        obj['render_config']['mode']              = moderngl.LINES
+        obj['render_config']['configure_context'] = lambda context: None
+
+        obj['vaos'] = [self.__create_line_vao(obj['buffers'], self.programs_default['flat'])]
 
     def remove_object(self, object_name):
         self.__enqueue_command(lambda: self.__remove_object(object_name))
         
     def __remove_object(self, object_name):
-        assert object_name in self.buffers_all
-        assert object_name in self.vaos_all
-
-        self.buffers_all.pop(object_name, None)
-        self.vaos_all.pop(object_name, None)
+        assert object_name in self.objects
+        self.objects.pop(object_name, None)
 
     def set_model_matrix(self, model_matrix):
         self.__enqueue_command(lambda: self.__set_model_matrix(model_matrix))
@@ -330,23 +354,28 @@ class MeshViewer:
             raise RuntimeError(f"Material '{material}' is not a valid material name.")
         material = self.programs_default[material]
         
-        buffers = self.buffers_all[object_name]
+        
+        obj = self.objects[object_name]
 
-        if buffers['type'] != 'mesh':
-            raise RuntimeError(f"Materials can only be set for mesh objects (object '{object_name}' is of type '{buffers['type']}').")
+        if obj['type'] != 'mesh':
+            raise RuntimeError(f"Materials can only be set for mesh objects (object '{object_name}' is of type '{obj['type']}').")
 
-        vao = self.__create_mesh_vao(buffers, material)
-
-        if index >= len(self.vaos_all[object_name][2]):
-            self.vaos_all[object_name][2].append(vao)
+        vao = self.__create_mesh_vao(obj['buffers'], material)
+        if index >= len(obj['vaos']):
+            obj['vaos'].append(vao)
         else:
-            self.vaos_all[object_name][2][index] = vao
+            obj['vaos'][index] = vao
 
     def remove_material(self, index=0, object_name='default'):
         self.__enqueue_command(lambda: self.__remove_material(index, object_name))
 
-    def __remove_material(self, index, object_name):
-        vaos = self.vaos_all[object_name][2]
+    def __remove_material(self, index: int, object_name: str):
+        obj = self.objects[object_name]
+
+        if obj['type'] != 'mesh':
+            raise RuntimeError(f"Materials can only be removed from mesh objects (object '{object_name}' is of type '{obj['type']}').")
+
+        vaos = obj['vaos']
 
         if len(vaos) == 0:
             return
@@ -406,44 +435,3 @@ class MeshViewer:
             program,
             self.__create_content_for_program(buffers, program)
         )
-
-    def __update_vao(self, object_name):
-        assert object_name in self.buffers_all
-
-        buffers = self.buffers_all[object_name]
-
-        if buffers['type'] == 'mesh':
-            if object_name in self.vaos_all:
-                # Update the VAOs and preserve the programs
-                vaos = []
-                for v in self.vaos_all[object_name][2]:
-                    vaos += [self.__create_mesh_vao(buffers, v.program)]
-            else:
-                # Create a VAO with default material
-                vaos = [self.__create_mesh_vao(buffers, self.programs_default[self.program_name_default])]
-
-            # We control the 'in_vert' and `in_color' variables
-            self.vaos_all[object_name] = (
-                moderngl.TRIANGLES,
-                lambda context: None,
-                vaos
-            )
-        elif buffers['type'] == 'points':
-            def configure_context(context):
-                context.point_size = buffers['point_size']
-
-            # We control the 'in_vert' and `in_color' variables
-            self.vaos_all[object_name] = (
-                moderngl.POINTS,
-                configure_context,
-                [self.__create_point_vao(buffers, self.programs_default['flat'])]
-            )
-        elif buffers['type'] == 'lines':
-            # We control the 'in_vert' and `in_color' variables
-            self.vaos_all[object_name] = (
-                moderngl.LINES,
-                lambda context: None,
-                [self.__create_line_vao(buffers, self.programs_default['flat'])]
-            )
-        else:
-            raise RuntimeError(f"Unknown object type {buffers['type']}")
