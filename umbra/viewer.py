@@ -69,7 +69,9 @@ class MeshViewer:
             'wireframe': self.context.program(vertex_shader=mesh_vertex_shader, geometry_shader=mesh_wireframe_geometry_shader, fragment_shader=fragment_shader_flat),
         }
 
-        self.program_points = self.context.program(vertex_shader=point_vs, fragment_shader=point_fs)
+        # # Legacy program for square points
+        # self.program_points           = self.context.program(vertex_shader=point_vs, fragment_shader=point_fs)
+        self.program_points_instanced = self.context.program(vertex_shader=point_instanced_vs, fragment_shader=point_fs)
 
         while not glfw.window_should_close(self.window):
             glfw.poll_events()
@@ -90,16 +92,27 @@ class MeshViewer:
             # Update shader data
             model_view_matrix = self.camera.view_matrix @ self.model_matrix
 
+            general_uniforms = {
+                'model_view_matrix': to_opengl_matrix(model_view_matrix),
+                'projection_matrix': to_opengl_matrix(self.camera.projection_matrix),
+                'screen_width': self.viewport[2] - self.viewport[0],
+                'screen_height': self.viewport[3] - self.viewport[1]
+            }
+
             for _, obj in self.objects.items():
                 for vao in obj['vaos']:
-                    vao.program['model_view_matrix'].write(to_opengl_matrix(model_view_matrix))
-                    vao.program['projection_matrix'].write(to_opengl_matrix(self.camera.projection_matrix))
+                    for name, value in general_uniforms.items():
+                        if name in vao.program:
+                            if isinstance(value, np.ndarray):
+                                vao.program[name].write(value)
+                            else:
+                                vao.program[name] = value
 
                     # TODO: Check implications for shared programs (between meshes)
                     for name, value in obj.get('uniforms', {}).items():
                         vao.program[name] = value
 
-                    vao.render(mode=obj['primitive_topology'])
+                    vao.render(**obj['render_args'])
 
             # Render the coordinate system 
             self.coordinate_system.render(self.context, self.camera)
@@ -246,7 +259,7 @@ class MeshViewer:
     def __get_or_create_object(self, name: str, expected_type: str):
         # Obtain the object information (if not existing, create it)
         if not name in self.objects:
-            self.objects[name] = {'type': expected_type, 'buffers': {}, 'vaos': [], 'primitive_topology': None, 'uniforms': {}}
+            self.objects[name] = {'type': expected_type, 'buffers': {}, 'vaos': [], 'render_args': {}, 'uniforms': {}}
 
         obj = self.objects[name]
 
@@ -274,7 +287,7 @@ class MeshViewer:
         obj['buffers']['vcbo'] = self.context.buffer(c_flat)
         obj['buffers']['ibo'] = self.context.buffer(f_flat)
         
-        obj['primitive_topology'] = moderngl.TRIANGLES
+        obj['render_args']['mode'] = moderngl.TRIANGLES
 
         if len(obj['vaos']) > 0:
             # Discard the existing VAOs and recreate them (buffers may have changed)
@@ -304,9 +317,16 @@ class MeshViewer:
         obj['buffers']['vbo']  = self.context.buffer(v_flat)
         obj['buffers']['vcbo'] = self.context.buffer(c_flat)
 
-        obj['primitive_topology'] = moderngl.POINTS
         obj['uniforms'] = { 'point_size': point_size }
-        obj['vaos'] = [self.__create_point_vao(obj['buffers'], self.program_points)]
+
+        # # Legacy:
+        # obj['render_args']['mode'] = moderngl.POINTS
+        # obj['vaos'] = [self.__create_point_vao(obj['buffers'], self.program_points, per_instance=False)]
+
+        obj['render_args']['mode'] = moderngl.TRIANGLE_STRIP
+        obj['render_args']['vertices'] = 4
+        obj['render_args']['instances'] = v.shape[0]
+        obj['vaos'] = [self.__create_point_vao(obj['buffers'], self.program_points_instanced, per_instance=True)]
 
     def set_lines(self, start: np.ndarray, end: np.ndarray, c=None, object_name='default'):
         self.__enqueue_command(lambda: self.__set_lines(start, end, c, object_name))
@@ -326,7 +346,7 @@ class MeshViewer:
         obj['buffers']['vbo']  = self.context.buffer(v_flat)
         obj['buffers']['vcbo'] = self.context.buffer(c_flat)
 
-        obj['primitive_topology'] = moderngl.LINES
+        obj['render_args']['mode'] = moderngl.LINES
         obj['vaos'] = [self.__create_line_vao(obj['buffers'], self.programs_default['flat'])]
 
     def remove_object(self, object_name):
@@ -393,7 +413,7 @@ class MeshViewer:
             self.command_queue.put(execute_and_set)
             event.wait()
 
-    def __create_content_for_program(self, buffers, program):
+    def __create_content_for_program(self, buffers, program, per_instance: bool = False):
         # [
         #     # Map in_vert to the first 2 floats
         #     # Map in_color to the next 3 floats
@@ -403,13 +423,15 @@ class MeshViewer:
         #     (self.vcbo, '3f', 'color'),
         # ],
 
-        content = [(buffers['vbo'], '3f', 'position')]
+        usage = '/v' if not per_instance else '/i' 
+
+        content = [(buffers['vbo'], f'3f {usage}', 'position')]
 
         if 'vnbo' in buffers and program.get('normal', None):
-            content += [(buffers['vnbo'], '3f', 'normal')]
+            content += [(buffers['vnbo'], f'3f {usage}', 'normal')]
 
-        if 'vcbo' in buffers and program.get('color', None):  
-            content += [(buffers['vcbo'], '3f', 'color')]
+        if 'vcbo' in buffers and program.get('color', None):
+            content += [(buffers['vcbo'], f'3f {usage}', 'color')]
         
         return content
 
@@ -421,10 +443,10 @@ class MeshViewer:
             index_element_size=4
         )
     
-    def __create_point_vao(self, buffers, program):
+    def __create_point_vao(self, buffers, program, per_instance: bool):
         return self.context.vertex_array(
             program,
-            self.__create_content_for_program(buffers, program)
+            self.__create_content_for_program(buffers, program, per_instance=per_instance)
         )
 
     def __create_line_vao(self, buffers, program):
